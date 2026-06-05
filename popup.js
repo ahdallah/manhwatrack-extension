@@ -1,5 +1,5 @@
 // popup.js
-const API_BASE = 'https://manhwatrack.com'
+const API_BASE = 'https://www.manhwatrack.com'
 
 document.addEventListener('DOMContentLoaded', async () => {
   const { authToken, username, avatarUrl } = await chrome.storage.local.get([

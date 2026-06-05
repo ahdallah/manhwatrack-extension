@@ -126,7 +126,7 @@ async function trySync() {
   if (!authToken) return
 
   try {
-    const res = await fetch('https://manhwatrack.com/api/extension/track', {
+    const res = await fetch('https://www.manhwatrack.com/api/extension/track', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
