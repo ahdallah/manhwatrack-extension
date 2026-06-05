@@ -66,8 +66,16 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "manhwatrack@manhwatrack.com",
-      "strict_min_version": "109.0"
+      "id": "{a8f2e3b1-4c7d-4e9f-8a2b-1c3d5e7f9a0b}",
+      "strict_min_version": "109.0",
+      "data_collection_permissions": {
+        "required": [
+          "authenticationInfo"
+        ],
+        "optional": [
+          "technicalAndInteraction"
+        ]
+      }
     }
   }
 }
