@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "ManhwaTrack",
+  "version": "1.0.0",
+  "description": "Auto-track your manhwa & manhua reading progress across all sites. Syncs with your ManhwaTrack account.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    },
+    "default_title": "ManhwaTrack"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.mangadex.org/*",
+        "*://*.webtoons.com/*",
+        "*://*.flixscans.org/*",
+        "*://*.flixscans.to/*",
+        "*://*.bato.to/*",
+        "*://*.reaperscans.com/*",
+        "*://*.asurascans.com/*",
+        "*://*.asuracomic.net/*",
+        "*://*.luminousscans.com/*",
+        "*://*.manhuaus.com/*",
+        "*://*.comick.io/*",
+        "*://*.comick.fun/*",
+        "*://*.toomics.com/*",
+        "*://*.tapas.io/*",
+        "*://*.tappytoon.com/*",
+        "*://*.lezhin.com/*",
+        "*://*.manta.net/*",
+        "*://*.naver.com/*",
+        "*://*.kakaopage.com/*",
+        "*://*.roliascan.com/*",
+        "*://*.manganato.com/*",
+        "*://*.chapmanganato.to/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://manhwatrack.com/*",
+    "*://www.manhwatrack.com/*"
+  ]
+}

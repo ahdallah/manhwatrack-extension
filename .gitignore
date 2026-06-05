@@ -1,0 +1,4 @@
+.env
+*.crx
+*.zip
+node_modules/
