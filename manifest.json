@@ -17,11 +17,7 @@
     "default_title": "ManhwaTrack"
   },
   "background": {
-    "service_worker": "background.js",
-    "scripts": [
-      "background.js"
-    ],
-    "type": "module"
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
@@ -67,7 +63,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "{a8f2e3b1-4c7d-4e9f-8a2b-1c3d5e7f9a0b}",
-      "strict_min_version": "109.0",
+      "strict_min_version": "121.0",
       "data_collection_permissions": {
         "required": [
           "authenticationInfo"
