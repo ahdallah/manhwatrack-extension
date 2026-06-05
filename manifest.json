@@ -18,6 +18,9 @@
   },
   "background": {
     "service_worker": "background.js",
+    "scripts": [
+      "background.js"
+    ],
     "type": "module"
   },
   "content_scripts": [
@@ -46,7 +49,9 @@
         "*://*.manganato.com/*",
         "*://*.chapmanganato.to/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
@@ -58,5 +63,11 @@
   "host_permissions": [
     "*://manhwatrack.com/*",
     "*://www.manhwatrack.com/*"
-  ]
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "manhwatrack@manhwatrack.com",
+      "strict_min_version": "109.0"
+    }
+  }
 }
