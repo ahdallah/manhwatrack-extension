@@ -1,50 +1,54 @@
 // content.js — injected into supported reading sites
 // Detects chapter number silently and syncs to ManhwaTrack
 
-// Paste sites.js parsers inline (content scripts can't import modules)
-
 const PARSERS = [
   {
     match: /mangadex\.org\/chapter\//,
     parse() {
       const title = document.querySelector('h1')?.textContent?.trim() ?? null
-      let chapter = null
-      const titleMatch = document.title.match(/ch(?:apter)?\s*([\d.]+)/i)
-      if (titleMatch) chapter = parseFloat(titleMatch[1])
-      return { title, chapter }
+      const m = document.title.match(/ch(?:apter)?\s*([\d.]+)/i)
+      return { title, chapter: m ? parseFloat(m[1]) : null }
     }
   },
   {
     match: /webtoons\.com\/.+\/viewer/,
     parse() {
       const title = document.querySelector('.subj_info .subj, #subjectTitle')?.textContent?.trim() ?? null
-      const urlMatch = location.href.match(/episode_no=(\d+)/)
-      return { title, chapter: urlMatch ? parseInt(urlMatch[1]) : null }
+      const m = location.href.match(/episode_no=(\d+)/)
+      return { title, chapter: m ? parseInt(m[1]) : null }
     }
   },
   {
     match: /bato\.to\/chapter\//,
     parse() {
       const title = document.querySelector('h1 a, .series-name')?.textContent?.trim() ?? null
-      const match = (document.querySelector('h2, .chap-name')?.textContent ?? document.title).match(/ch(?:apter)?\s*([\d.]+)/i)
-      return { title, chapter: match ? parseFloat(match[1]) : null }
+      const m = (document.querySelector('h2')?.textContent ?? document.title).match(/ch(?:apter)?\s*([\d.]+)/i)
+      return { title, chapter: m ? parseFloat(m[1]) : null }
     }
   },
   {
-    match: /(flixscans|reaperscans|asurascans|asuracomic|luminousscans|roliascan)\.(org|com|net|to)/,
+    // Asurascans, Flixscans, Luminous etc — handles /chapter/325 AND /chapter-325
+    match: /(asurascans|asuracomic|flixscans|reaperscans|luminousscans|roliascan)\.(com|net|org|to)/,
     parse() {
       let title = null
-      const crumbs = document.querySelectorAll('.breadcrumb a')
-      for (const c of crumbs) {
+      // Try breadcrumb
+      for (const c of document.querySelectorAll('.breadcrumb a, nav a, .series-title, h2 a')) {
         const t = c.textContent?.trim() ?? ''
-        if (!title && t.length > 2 && !t.match(/home|chapter/i)) title = t
+        if (t.length > 2 && !t.match(/home|chapter|prev|next/i)) { title = t; break }
       }
+      // Try page title
       if (!title) {
         const m = document.title.match(/^(.+?)\s*[-–|]\s*chapter/i)
         if (m) title = m[1].trim()
       }
-      const raw = (document.querySelector('h1')?.textContent ?? '').match(/chapter\s*([\d.]+)/i)?.[1]
-        ?? location.pathname.match(/chapter-([\d.]+)/i)?.[1]
+      // Asurascans URL: /comics/title-name-hexid/chapter/325
+      if (!title) {
+        const urlM = location.pathname.match(/\/(?:comics|series)\/(.+?)-[a-f0-9]{6,8}(?:\/|$)/i)
+        if (urlM) title = urlM[1].replace(/-/g, ' ')
+      }
+      // Chapter: handles /chapter/325 AND /chapter-325
+      const raw = location.pathname.match(/\/chapter[\/\-]([\d.]+)/i)?.[1]
+        ?? (document.querySelector('h1')?.textContent ?? '').match(/chapter\s*([\d.]+)/i)?.[1]
       return { title, chapter: raw ? parseFloat(raw) : null }
     }
   },
@@ -52,16 +56,16 @@ const PARSERS = [
     match: /comick\.(io|fun)/,
     parse() {
       const title = document.querySelector('h1')?.textContent?.trim() ?? null
-      const urlMatch = location.pathname.match(/\/(\d+(?:\.\d+)?)-chapter/)
-      return { title, chapter: urlMatch ? parseFloat(urlMatch[1]) : null }
+      const m = location.pathname.match(/\/([\d.]+)-chapter/)
+      return { title, chapter: m ? parseFloat(m[1]) : null }
     }
   },
   {
     match: /manhuaus\.com/,
     parse() {
       const title = document.querySelector('.breadcrumb a:nth-child(2)')?.textContent?.trim() ?? null
-      const urlMatch = location.pathname.match(/chapter-([\d.]+)/i)
-      return { title, chapter: urlMatch ? parseFloat(urlMatch[1]) : null }
+      const m = location.pathname.match(/chapter-([\d.]+)/i)
+      return { title, chapter: m ? parseFloat(m[1]) : null }
     }
   },
   {
@@ -102,9 +106,9 @@ function detectCurrentPage() {
   return null
 }
 
-// ── Throttled sync ──────────────────────────────────────────────────────────
+// ── Throttled sync ────────────────────────────────────────────────────────────
 
-let lastSynced = null  // { chapter, title }
+let lastSynced = null
 
 function shouldSync(detected) {
   if (!lastSynced) return true
@@ -118,9 +122,8 @@ async function trySync() {
   if (!page) return
   if (!shouldSync(page)) return
 
-  // Get auth token from storage
-  const { authToken, userId } = await chrome.storage.local.get(['authToken', 'userId'])
-  if (!authToken) return  // Not logged in — silent, do nothing
+  const { authToken } = await chrome.storage.local.get(['authToken'])
+  if (!authToken) return
 
   try {
     const res = await fetch('https://manhwatrack.com/api/extension/track', {
@@ -139,7 +142,6 @@ async function trySync() {
 
     if (res.ok) {
       lastSynced = { chapter: page.chapter, title: page.title }
-      // Update badge in background
       chrome.runtime.sendMessage({
         type: 'CHAPTER_SYNCED',
         data: { title: page.title, chapter: page.chapter, site: page.site },
@@ -150,19 +152,18 @@ async function trySync() {
   }
 }
 
-// Run on page load, then watch for URL changes (SPA navigation)
+// Run on page load
 trySync()
 
-// Watch for SPA navigation (MangaDex, Webtoon etc. navigate without full reload)
+// Watch for SPA navigation
 let lastHref = location.href
 const observer = new MutationObserver(() => {
   if (location.href !== lastHref) {
     lastHref = location.href
-    // Small delay to let page content render
     setTimeout(trySync, 1500)
   }
 })
 observer.observe(document.body, { childList: true, subtree: true })
 
-// Also re-run after a short delay for slow-loading pages
+// Re-run after delay for slow pages
 setTimeout(trySync, 2000)
