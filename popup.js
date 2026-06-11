@@ -78,22 +78,15 @@ function showConnected({ username, avatarUrl }) {
 }
 
 // ── Supported site patterns ───────────────────────────────────────────────────
-const SUPPORTED_PATTERNS = [
-  /mangadex\.org\/chapter\//,
-  /webtoons\.com\/.+\/viewer/,
-  /bato\.to\/chapter\//,
-  /asurascans\.com\/comics\/.+\/chapter\//,
-  /asuracomic\.net\/series\/.+\/chapter\//,
-  /flixscans\.(org|to)/,
-  /reaperscans\.com/,
-  /luminousscans\.com/,
-  /roliascan\.com/,
-  /comick\.(io|fun)/,
-  /manhuaus\.com/,
-  /manganato\.com\/chapter/,
-  /chapmanganato\.to\/chapter/,
-  /tapas\.io\/episode/,
-]
+// Generic: any URL with chapter/episode pattern
+function isChapterUrl(url) {
+  return /\/chapter[\/-](\d+)/i.test(url) ||
+    /[a-z]+-chapter-(\d+)/i.test(url) ||
+    /\/episode[\/-](\d+)/i.test(url) ||
+    /\/ch[\/-](\d+)/i.test(url) ||
+    /webtoons\.com\/.+\/viewer/.test(url) ||
+    /tapas\.io\/episode/.test(url)
+}
 
 async function detectCurrentTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
@@ -103,7 +96,7 @@ async function detectCurrentTab() {
   const url = tab.url ?? ''
 
   // Check URL first without injecting
-  const isSupported = SUPPORTED_PATTERNS.some(r => r.test(url))
+  const isSupported = isChapterUrl(url)
 
   if (!isSupported) {
     container.innerHTML = '<div class="not-detected">Not a supported reading page</div>'
@@ -127,7 +120,8 @@ async function detectCurrentTab() {
       container.textContent = ''
       container.appendChild(titleEl)
       container.appendChild(chEl)
-      showStatus('Progress saved automatically', 'success')
+      // Sync directly from popup — don't rely on content.js
+      syncFromPopup(page)
     } else {
       container.innerHTML = '<div class="not-detected">Supported site — navigate to a chapter page</div>'
     }
@@ -223,6 +217,24 @@ function detectPageInTab() {
         return { title: document.querySelector('.series-header__title')?.textContent?.trim() ?? null, chapter: m ? parseFloat(m[1]) : null }
       }
     },
+    {
+      // Generic — matches ANY URL with chapter pattern
+      match: /chapter[\/-]\d+|[a-z]+-chapter-\d+/i,
+      parse() {
+        const raw = location.pathname.match(/chapter[\/-]([\d.]+)/i)?.[1]
+          ?? location.pathname.match(/[a-z]+-chapter-([\d.]+)/i)?.[1]
+        let title = null
+        for (const c of document.querySelectorAll('.breadcrumb a, nav a, h2 a')) {
+          const t = c.textContent?.trim() ?? ''
+          if (t.length > 2 && !t.match(/home|chapter|prev|next/i)) { title = t; break }
+        }
+        if (!title) {
+          const m = document.title.match(/^(.+?)\s*[-–|]/)
+          if (m) title = m[1].trim()
+        }
+        return { title, chapter: raw ? parseFloat(raw) : null }
+      }
+    },
   ]
 
   for (const p of PARSERS) {
@@ -230,12 +242,43 @@ function detectPageInTab() {
       try {
         const r = p.parse()
         if (r.chapter && r.chapter > 0) {
-          return { title: r.title, chapter: Math.floor(r.chapter), site: location.hostname.replace('www.', '') }
+          return { title: r.title, chapter: Math.floor(r.chapter), site: location.hostname.replace('www.', ''), url: location.href }
         }
       } catch(e) {}
     }
   }
   return null
+}
+
+async function syncFromPopup(page) {
+  const { authToken } = await chrome.storage.local.get(['authToken'])
+  if (!authToken) return
+  try {
+    const res = await fetch('https://www.manhwatrack.com/api/extension/track', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({
+        title: page.title,
+        chapter: page.chapter,
+        site: page.site,
+        url: page.url,
+        force: true, // popup sync always updates regardless of chapter direction
+      }),
+    })
+    const data = await res.json()
+    if (res.ok && data.matched) {
+      showStatus('✓ Progress saved — ' + data.title, 'success')
+    } else if (res.ok && !data.matched) {
+      showStatus('Tracked but title not in database', 'success')
+    } else {
+      showStatus('Could not save — try reconnecting', 'error')
+    }
+  } catch(e) {
+    showStatus('Network error', 'error')
+  }
 }
 
 function showStatus(msg, type) {

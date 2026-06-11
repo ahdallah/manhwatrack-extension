@@ -93,6 +93,11 @@ function genericParse() {
     /\/episode[\/\-]([\d.]+)/i,
     /\/ep[\/\-]([\d.]+)/i,
     /-chapter-([\d.]+)/i,
+    // Matches "title-name-chapter-125" at end of path segment
+    /[a-z]+-chapter-([\d.]+)\/?$/i,
+    // Matches "title-125" where 125 is at very end (risky but useful)
+    // Only if preceded by known keywords
+    /(?:vol|volume|chap|ch)[.\-_]?([\d.]+)/i,
   ]
 
   let chapter = null
