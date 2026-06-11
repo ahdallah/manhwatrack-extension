@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ManhwaTrack",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Auto-track your manhwa & manhua reading progress across all sites. Syncs with your ManhwaTrack account.",
   "icons": {
     "16": "icons/icon16.png",
@@ -47,7 +47,6 @@
         "*://*.roliascan.com/*",
         "*://*.manganato.com/*",
         "*://*.chapmanganato.to/*",
-        "*://*.chapmanganato.to/*",
         "*://*.pickmeupgacha.com/*",
         "*://*.void-scans.com/*",
         "*://*.flamescans.org/*",
@@ -60,6 +59,16 @@
         "content.js"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "match_about_blank": false
     }
   ],
   "permissions": [
@@ -69,7 +78,8 @@
   ],
   "host_permissions": [
     "*://manhwatrack.com/*",
-    "*://www.manhwatrack.com/*"
+    "*://www.manhwatrack.com/*",
+    "<all_urls>"
   ],
   "browser_specific_settings": {
     "gecko": {

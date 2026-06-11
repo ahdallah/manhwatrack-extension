@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ManhwaTrack",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Auto-track your manhwa & manhua reading progress across all sites. Syncs with your ManhwaTrack account.",
   "icons": {
     "16": "icons/icon16.png",
