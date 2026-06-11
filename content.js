@@ -1,6 +1,7 @@
 // content.js — injected into supported reading sites
 // Detects chapter number silently and syncs to ManhwaTrack
 
+// ── Site-specific parsers (high accuracy) ────────────────────────────────────
 const PARSERS = [
   {
     match: /mangadex\.org\/chapter\//,
@@ -27,26 +28,18 @@ const PARSERS = [
     }
   },
   {
-    // Asurascans, Flixscans, Luminous etc — handles /chapter/325 AND /chapter-325
     match: /(asurascans|asuracomic|flixscans|reaperscans|luminousscans|roliascan)\.(com|net|org|to)/,
     parse() {
       let title = null
-      // Try breadcrumb
       for (const c of document.querySelectorAll('.breadcrumb a, nav a, .series-title, h2 a')) {
         const t = c.textContent?.trim() ?? ''
         if (t.length > 2 && !t.match(/home|chapter|prev|next/i)) { title = t; break }
       }
-      // Try page title
-      if (!title) {
-        const m = document.title.match(/^(.+?)\s*[-–|]\s*chapter/i)
-        if (m) title = m[1].trim()
-      }
-      // Asurascans URL: /comics/title-name-hexid/chapter/325
+      if (!title) { const m = document.title.match(/^(.+?)\s*[-–|]\s*chapter/i); if (m) title = m[1].trim() }
       if (!title) {
         const urlM = location.pathname.match(/\/(?:comics|series)\/(.+?)-[a-f0-9]{6,8}(?:\/|$)/i)
         if (urlM) title = urlM[1].replace(/-/g, ' ')
       }
-      // Chapter: handles /chapter/325 AND /chapter-325
       const raw = location.pathname.match(/\/chapter[\/\-]([\d.]+)/i)?.[1]
         ?? (document.querySelector('h1')?.textContent ?? '').match(/chapter\s*([\d.]+)/i)?.[1]
       return { title, chapter: raw ? parseFloat(raw) : null }
@@ -86,8 +79,68 @@ const PARSERS = [
   },
 ]
 
+// ── Generic parser — works on ANY site ───────────────────────────────────────
+// Runs when no specific parser matches, as long as URL has chapter/episode pattern
+function genericParse() {
+  const path = location.pathname + location.href
+
+  // Extract chapter from URL — supports all common patterns:
+  // /chapter/196, /chapter-196, /ch-196, /ch.196, ?chapter=196, /196/ (after series name)
+  const chapterPatterns = [
+    /\/chapter[\/\-\.]([\d.]+)/i,
+    /\/ch[\/\-\.]([\d.]+)/i,
+    /[?&]chapter=([\d.]+)/i,
+    /\/episode[\/\-]([\d.]+)/i,
+    /\/ep[\/\-]([\d.]+)/i,
+    /-chapter-([\d.]+)/i,
+  ]
+
+  let chapter = null
+  for (const pattern of chapterPatterns) {
+    const m = path.match(pattern)
+    if (m) { chapter = parseFloat(m[1]); break }
+  }
+
+  if (!chapter) return null
+
+  // Extract title — try multiple sources
+  let title = null
+
+  // 1. Breadcrumb (most reliable)
+  const crumbs = document.querySelectorAll('.breadcrumb a, nav.breadcrumb a, [class*="breadcrumb"] a')
+  for (const c of crumbs) {
+    const t = c.textContent?.trim() ?? ''
+    if (t.length > 2 && !t.match(/home|chapter|episode|read|manga|manhwa/i)) { title = t; break }
+  }
+
+  // 2. Page title — strip "Chapter X" and site name
+  if (!title) {
+    let pageTitle = document.title
+      .replace(/[-|–|·].*chapter.*/i, '')
+      .replace(/\s*[-|–|·]\s*[^-|–|·]+$/, '') // remove site name suffix
+      .trim()
+    if (pageTitle.length > 2 && pageTitle.length < 100) title = pageTitle
+  }
+
+  // 3. First h1 on page
+  if (!title) {
+    const h1 = document.querySelector('h1')?.textContent
+      ?.replace(/chapter\s*[\d.]+.*/i, '')
+      ?.trim()
+    if (h1 && h1.length > 2 && h1.length < 100) title = h1
+  }
+
+  // Clean title — remove chapter suffix if present
+  if (title) title = title.replace(/\s*[-–]\s*chapter\s*[\d.]+.*/i, '').trim()
+
+  return { title, chapter }
+}
+
+// ── Main detection ────────────────────────────────────────────────────────────
 function detectCurrentPage() {
   const href = location.href
+
+  // Try specific parsers first
   for (const parser of PARSERS) {
     if (parser.match.test(href)) {
       try {
@@ -103,11 +156,22 @@ function detectCurrentPage() {
       } catch (e) {}
     }
   }
+
+  // Generic fallback — works on ANY site with chapter in URL
+  const generic = genericParse()
+  if (generic && generic.chapter > 0) {
+    return {
+      site: location.hostname.replace('www.', ''),
+      title: generic.title,
+      chapter: Math.floor(generic.chapter),
+      url: href,
+    }
+  }
+
   return null
 }
 
-// ── Throttled sync ────────────────────────────────────────────────────────────
-
+// ── Sync ──────────────────────────────────────────────────────────────────────
 let lastSynced = null
 
 function shouldSync(detected) {
@@ -147,15 +211,11 @@ async function trySync() {
         data: { title: page.title, chapter: page.chapter, site: page.site },
       })
     }
-  } catch (e) {
-    // Network error — silent
-  }
+  } catch (e) {}
 }
 
-// Run on page load
 trySync()
 
-// Watch for SPA navigation
 let lastHref = location.href
 const observer = new MutationObserver(() => {
   if (location.href !== lastHref) {
@@ -164,6 +224,4 @@ const observer = new MutationObserver(() => {
   }
 })
 observer.observe(document.body, { childList: true, subtree: true })
-
-// Re-run after delay for slow pages
 setTimeout(trySync, 2000)
